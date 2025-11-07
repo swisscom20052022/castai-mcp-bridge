@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  castai-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: castai-mcp-bridge
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - CASTAI_API_BASE=${CASTAI_API_BASE:-https://api.cast.ai}
+      - CASTAI_API_KEY=${CASTAI_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      # Mount OpenAPI spec for easy updates
+      - ./openapi-spec.yaml:/app/openapi-spec.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - castai-network
+    labels:
+      - "com.cast.ai.service=mcp-bridge"
+      - "com.cast.ai.version=1.0.0"
+
+networks:
+  castai-network:
+    driver: bridge

@@ -1,0 +1,831 @@
+openapi: 3.1.0
+info:
+  title: CAST AI MCP Bridge
+  version: "1.0.0"
+  description: |
+    OpenAPI bridge for CAST AI Model Context Protocol (MCP) server.
+    This API exposes CAST AI MCP tools as REST endpoints for integration with ChatGPT Actions and other OpenAPI-compatible clients.
+    
+    ## Authentication
+    Use your CAST AI API key in the `X-CASTAI-API-Key` header.
+    
+    ## Base URL
+    - Production: https://api.cast.ai
+    - EU: https://api.eu.cast.ai
+  contact:
+    name: CAST AI Support
+    url: https://docs.cast.ai
+
+servers:
+  - url: http://localhost:3000
+    description: Local bridge server
+  - url: https://your-bridge.example.com
+    description: Production bridge (configure your deployment)
+
+security:
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-CASTAI-API-Key
+      description: CAST AI API Key from https://console.cast.ai
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        details:
+          type: object
+          description: Additional error details
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Cluster:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        organizationId:
+          type: string
+        status:
+          type: string
+        region:
+          type: string
+        cloudProvider:
+          type: string
+
+    CostReport:
+      type: object
+      properties:
+        clusterId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        totalCost:
+          type: number
+        onDemandCost:
+          type: number
+        spotCost:
+          type: number
+
+    ClusterSummary:
+      type: object
+      properties:
+        clusterId:
+          type: string
+        name:
+          type: string
+        totalNodes:
+          type: integer
+        totalCost:
+          type: number
+        efficiency:
+          type: number
+
+    SecurityImage:
+      type: object
+      properties:
+        tagId:
+          type: string
+        name:
+          type: string
+        tag:
+          type: string
+        criticalVulnerabilities:
+          type: integer
+        highVulnerabilities:
+          type: integer
+
+    Workload:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+        kind:
+          type: string
+        cost:
+          type: number
+
+paths:
+  # ============================================================
+  # Organization Management
+  # ============================================================
+  
+  /organizations:
+    get:
+      operationId: listOrganizations
+      summary: List user organizations
+      description: Returns all organizations the authenticated user has access to
+      tags:
+        - Organizations
+      responses:
+        "200":
+          description: List of organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Organization"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ============================================================
+  # Cluster Management
+  # ============================================================
+  
+  /clusters:
+    get:
+      operationId: listClusters
+      summary: List all clusters
+      description: Returns all Kubernetes clusters for the organization
+      tags:
+        - Clusters
+      responses:
+        "200":
+          description: List of clusters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Cluster"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clusters/{clusterId}:
+    get:
+      operationId: getCluster
+      summary: Get cluster details
+      description: Returns detailed information about a specific cluster
+      tags:
+        - Clusters
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+      responses:
+        "200":
+          description: Cluster details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cluster"
+        "404":
+          description: Cluster not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /clusters/{clusterId}/summary:
+    get:
+      operationId: getClusterSummary
+      summary: Get cluster summary
+      description: Returns current summary with nodes, cost, and efficiency metrics
+      tags:
+        - Clusters
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+      responses:
+        "200":
+          description: Cluster summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterSummary"
+
+  # ============================================================
+  # Cost Optimization
+  # ============================================================
+  
+  /clusters/{clusterId}/cost-report:
+    get:
+      operationId: getClusterCostReport
+      summary: Get cluster cost report
+      description: Returns detailed cost breakdown for a cluster
+      tags:
+        - Cost Reports
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+        - name: startTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the report (ISO 8601)
+          example: "2025-11-01T00:00:00Z"
+        - name: endTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End time for the report (ISO 8601)
+          example: "2025-11-07T23:59:59Z"
+      responses:
+        "200":
+          description: Cost report data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostReport"
+
+  /clusters/{clusterId}/estimated-savings:
+    get:
+      operationId: getEstimatedSavings
+      summary: Get estimated savings
+      description: Returns available savings recommendations based on current cluster state
+      tags:
+        - Cost Reports
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+      responses:
+        "200":
+          description: Savings estimation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalSavings:
+                    type: number
+                  recommendations:
+                    type: array
+                    items:
+                      type: object
+
+  /clusters/{clusterId}/workload-costs:
+    get:
+      operationId: getWorkloadCosts
+      summary: Get workload costs
+      description: Returns cost breakdown by workload
+      tags:
+        - Cost Reports
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+        - name: startTime
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the report
+        - name: endTime
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: End time for the report
+      responses:
+        "200":
+          description: Workload costs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workload"
+
+  /organization/daily-cost:
+    get:
+      operationId: getOrganizationDailyCost
+      summary: Get organization daily cost
+      description: Returns cost report across all clusters in the organization
+      tags:
+        - Cost Reports
+      parameters:
+        - name: startTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Start time for the report
+        - name: endTime
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: End time for the report
+      responses:
+        "200":
+          description: Organization cost data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalCost:
+                    type: number
+                  clusters:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CostReport"
+
+  # ============================================================
+  # Security
+  # ============================================================
+  
+  /security/images:
+    get:
+      operationId: listSecurityImages
+      summary: List container images
+      description: Returns list of container images with vulnerability information
+      tags:
+        - Security
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+          description: Maximum number of results
+        - name: severityThreshold
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [CRITICAL, HIGH, MEDIUM, LOW]
+          description: Minimum severity level to include
+      responses:
+        "200":
+          description: List of images
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SecurityImage"
+
+  /security/images/{tagId}/vulnerabilities:
+    get:
+      operationId: getImageVulnerabilities
+      summary: Get image vulnerabilities
+      description: Returns detailed vulnerability list for a specific container image
+      tags:
+        - Security
+      parameters:
+        - name: tagId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Image tag ID
+      responses:
+        "200":
+          description: Vulnerability list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    cveId:
+                      type: string
+                    severity:
+                      type: string
+                    packageName:
+                      type: string
+                    fixAvailable:
+                      type: boolean
+
+  /security/best-practices:
+    get:
+      operationId: getSecurityBestPractices
+      summary: Get security best practices report
+      description: Returns latest compliance and best practices scan results
+      tags:
+        - Security
+      parameters:
+        - name: clusterId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by specific cluster
+      responses:
+        "200":
+          description: Best practices report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  passed:
+                    type: integer
+                  failed:
+                    type: integer
+                  checks:
+                    type: array
+                    items:
+                      type: object
+
+  /security/overview:
+    get:
+      operationId: getSecurityOverview
+      summary: Get security overview
+      description: Returns high-level security overview across all clusters
+      tags:
+        - Security
+      responses:
+        "200":
+          description: Security overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vulnerabilities:
+                    type: object
+                  bestPractices:
+                    type: object
+                  attackPaths:
+                    type: object
+
+  # ============================================================
+  # Workload Optimization
+  # ============================================================
+  
+  /clusters/{clusterId}/workloads:
+    get:
+      operationId: listWorkloads
+      summary: List cluster workloads
+      description: Returns list of all workloads in a cluster with optimization info
+      tags:
+        - Workloads
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+      responses:
+        "200":
+          description: List of workloads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workload"
+
+  /clusters/{clusterId}/workload-efficiency:
+    get:
+      operationId: getWorkloadEfficiency
+      summary: Get workload efficiency
+      description: Returns efficiency metrics for workloads in the cluster
+      tags:
+        - Workloads
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+      responses:
+        "200":
+          description: Workload efficiency data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /clusters/{clusterId}/unscheduled-pods:
+    get:
+      operationId: getUnscheduledPods
+      summary: Get unscheduled pods
+      description: Returns list of pods that cannot be scheduled
+      tags:
+        - Workloads
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+      responses:
+        "200":
+          description: List of unscheduled pods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                    reason:
+                      type: string
+
+  # ============================================================
+  # Nodes Management
+  # ============================================================
+  
+  /clusters/{clusterId}/nodes:
+    get:
+      operationId: listClusterNodes
+      summary: List cluster nodes
+      description: Returns list of nodes in the cluster
+      tags:
+        - Nodes
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+      responses:
+        "200":
+          description: List of nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    instanceType:
+                      type: string
+                    status:
+                      type: string
+
+  /clusters/{clusterId}/problematic-nodes:
+    get:
+      operationId: getProblematicNodes
+      summary: Get problematic nodes
+      description: Returns list of nodes with issues
+      tags:
+        - Nodes
+      parameters:
+        - name: clusterId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cluster ID
+      responses:
+        "200":
+          description: List of problematic nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  # ============================================================
+  # MCP Discovery & Tools (Advanced)
+  # ============================================================
+  
+  /mcp/specs:
+    get:
+      operationId: listMCPSpecs
+      summary: List available MCP API specifications
+      description: Returns all available CAST AI API specifications through MCP
+      tags:
+        - MCP Tools
+      responses:
+        "200":
+          description: List of API specs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    title:
+                      type: string
+                    description:
+                      type: string
+
+  /mcp/endpoints:
+    get:
+      operationId: listMCPEndpoints
+      summary: List MCP endpoints
+      description: Returns all endpoints for a specific API specification
+      tags:
+        - MCP Tools
+      parameters:
+        - name: title
+          in: query
+          required: true
+          schema:
+            type: string
+          description: API specification title
+          example: "CAST.AI API documentation"
+      responses:
+        "200":
+          description: Endpoints dictionary
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /mcp/endpoint-details:
+    post:
+      operationId: getMCPEndpointDetails
+      summary: Get endpoint details
+      description: Returns detailed information about a specific MCP endpoint
+      tags:
+        - MCP Tools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - path
+                - method
+                - title
+              properties:
+                path:
+                  type: string
+                  example: "/v1/organizations"
+                method:
+                  type: string
+                  example: "get"
+                title:
+                  type: string
+                  example: "CAST.AI API documentation"
+      responses:
+        "200":
+          description: Endpoint details
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /mcp/search:
+    get:
+      operationId: searchMCPSpecs
+      summary: Search MCP specifications
+      description: Search across all API specs for specific functionality
+      tags:
+        - MCP Tools
+      parameters:
+        - name: pattern
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search pattern (case-insensitive)
+          example: "cost"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /mcp/execute:
+    post:
+      operationId: executeMCPRequest
+      summary: Execute MCP API request
+      description: Execute a direct API request through MCP
+      tags:
+        - MCP Tools
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - method
+                - url
+                - title
+              properties:
+                method:
+                  type: string
+                  enum: [GET, POST, PUT, PATCH, DELETE]
+                url:
+                  type: string
+                  format: uri
+                headers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      value:
+                        type: string
+                queryString:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      value:
+                        type: string
+                postData:
+                  type: object
+                  properties:
+                    mimeType:
+                      type: string
+                    text:
+                      type: string
+                title:
+                  type: string
+      responses:
+        "200":
+          description: API response
+          content:
+            application/json:
+              schema:
+                type: object
+
+tags:
+  - name: Organizations
+    description: Organization management endpoints
+  - name: Clusters
+    description: Kubernetes cluster management
+  - name: Cost Reports
+    description: Cost optimization and reporting
+  - name: Security
+    description: Security scanning and compliance
+  - name: Workloads
+    description: Workload optimization and management
+  - name: Nodes
+    description: Node management and monitoring
+  - name: MCP Tools
+    description: Direct MCP server access (advanced)
