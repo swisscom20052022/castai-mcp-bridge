@@ -10,17 +10,15 @@ info:
     Use your CAST AI API key in the `X-CASTAI-API-Key` header.
     
     ## Base URL
-    - Production: https://api.cast.ai
+    - Production: https://api.eu.cast.ai
     - EU: https://api.eu.cast.ai
   contact:
     name: CAST AI Support
     url: https://docs.cast.ai
 
 servers:
-  - url: http://localhost:3000
-    description: Local bridge server
-  - url: https://your-bridge.example.com
-    description: Production bridge (configure your deployment)
+  - url: https://castai-mcp-bridge-production.up.railway.app
+    description: Production bridge server
 
 security:
   - ApiKeyAuth: []
@@ -696,6 +694,11 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
+                properties:
+                  paths:
+                    type: object
+                    description: Dictionary of API paths and their operations
 
   /mcp/endpoint-details:
     post:
@@ -731,6 +734,24 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
+                properties:
+                  path:
+                    type: string
+                  method:
+                    type: string
+                  summary:
+                    type: string
+                  description:
+                    type: string
+                  parameters:
+                    type: array
+                    items:
+                      type: object
+                  requestBody:
+                    type: object
+                  responses:
+                    type: object
 
   /mcp/search:
     get:
@@ -754,6 +775,21 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
+                properties:
+                  matches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        title:
+                          type: string
+                        path:
+                          type: string
+                        method:
+                          type: string
+                        summary:
+                          type: string
 
   /mcp/execute:
     post:
@@ -813,6 +849,13 @@ paths:
             application/json:
               schema:
                 type: object
+                additionalProperties: true
+                properties:
+                  status:
+                    type: integer
+                  data:
+                    type: object
+                    additionalProperties: true
 
 tags:
   - name: Organizations
